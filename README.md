@@ -1,1 +1,1 @@
-# Simple-Ship-Battle-Game
+Prosta gra w statki w języku Erlang.
