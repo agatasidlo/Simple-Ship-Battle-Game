@@ -21,6 +21,11 @@ init([]) ->
     wxFrame:setSizer(Frame, Sizer),
     wxSizer:setSizeHints(Sizer, Frame),
     wxPanel:connect(Panel, paint, [callback]),
+		%Text = wxTextCtrl:new(Panel, ?wxID_ANY, "Pick sth", []),
+		%wxTextCtrl:appendText(Text, "Pick places for your ships"),
+		%Dialog = wxMessageDialog:new (Panel, "Let's talk."),
+		%wxMessageDialog:showModal(Dialog),
+		
 
     White = {0,100,200},
     Black = {0,50,200},
@@ -29,7 +34,9 @@ init([]) ->
 	      layout => init_board(),
 	      image_map => load_images(),
 	      white_brush => wxBrush:new(White),
-	      black_brush => wxBrush:new(Black)},
+	      black_brush => wxBrush:new(Black),
+				selected_brush => wxBrush:new({238,232,170}),
+				selected => none},
 
     wxFrame:show(Frame),
     %% wxFrame:refresh(Frame),
@@ -108,7 +115,7 @@ load_images() ->
       {white, king}	=> "redX.png",
       {white, pawn}	=> "redX.png"},
     maps:map(fun(_K,V) -> wxImage:new(
-			    filename:join("../images", V), 
+			    filename:join("./images", V), 
 			    [{type, ?wxBITMAP_TYPE_PNG}]) end,
 	     ImageFileNames).
 
@@ -128,7 +135,17 @@ paint_board(#{panel := Panel,
 		end,
 		Rectangle = rectangle(C,R,SquareSize),		
 		wxDC:setBrush(DC,Brush),
-		wxDC:drawRectangle(DC, Rectangle)	    
+		wxDC:drawRectangle(DC, Rectangle),
+		case maps:get({C,R}, Layout, none) of
+    		none -> ok;
+    		Piece ->
+			{X,Y,SW,SH} = Rectangle,
+			Image = wxImage:scale(maps:get(Piece, ImageMap),SW,SH),
+			PieceBitmap = wxBitmap:new(Image),
+			wxDC:drawBitmap(DC, PieceBitmap, {X,Y}),
+			wxImage:destroy(Image),
+			wxBitmap:destroy(PieceBitmap)
+		end	    
 	end,
     
     DC = wxPaintDC:new(Panel),
