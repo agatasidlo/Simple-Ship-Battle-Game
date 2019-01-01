@@ -13,33 +13,35 @@ init([]) ->
     wx:new(),
     Frame = wxFrame:new(wx:null(), ?wxID_ANY, "Gra w statki"),
     Sizer = wxBoxSizer:new(?wxVERTICAL),
+		Text = wxStaticText:new(Frame, ?wxID_ANY, "Pick 5 places for your ships"),
+		wxSizer:add(Sizer, Text),
     Panel = wxPanel:new(Frame,[{size, {600,600}},
 			       {style, ?wxFULL_REPAINT_ON_RESIZE}]),
     wxSizer:add(Sizer, Panel, [{proportion, 1}, 
 			       {flag, ?wxEXPAND bor ?wxALL}, 
-			       {border, 5}]), 
+			       {border, 5}]),
     wxFrame:setSizer(Frame, Sizer),
     wxSizer:setSizeHints(Sizer, Frame),
     wxPanel:connect(Panel, paint, [callback]),
-		%Text = wxTextCtrl:new(Panel, ?wxID_ANY, "Pick sth", []),
-		%wxTextCtrl:appendText(Text, "Pick places for your ships"),
-		%Dialog = wxMessageDialog:new (Panel, "Let's talk."),
-		%wxMessageDialog:showModal(Dialog),
-		
 
     White = {0,100,200},
     Black = {0,50,200},
     State = #{frame => Frame,
 	      panel => Panel,
-	      layout => init_board(),
+	      layoutPlayer => maps:from_list([]),			% player's board
+				layoutComputer => maps:from_list([]),		% computer's board
 	      image_map => load_images(),
 	      white_brush => wxBrush:new(White),
 	      black_brush => wxBrush:new(Black),
 				selected_brush => wxBrush:new({238,232,170}),
-				selected => none},
+				state => choosingShipsPlaces,						% state = [choosingShipsPlaces | battle | endOfGame]
+				counter => 0,														% counter of sunken player's ships
+				counterComputer => 0										% counter of sunken computer's ships
+				},
 
     wxFrame:show(Frame),
-    %% wxFrame:refresh(Frame),
+		wxPanel:connect(Panel, left_down),
+    wxFrame:refresh(Frame),
 
     {Panel, State}.
 
@@ -52,11 +54,69 @@ handle_cast(_Msg, State) ->
 handle_info(_Info, State) ->
     {noreply, State}.
 
-handle_event(#wx{}, State) ->
-    {noreply, State}.
+handle_event(#wx{event=#wxMouse{leftDown=true, x=X, y=Y}}, State=				%mouse event when choosing places for ships
+						 #{panel := Panel,
+						 layoutPlayer := LayoutPlayer,
+						 state := choosingShipsPlaces,
+						 counter := Counter
+						 }) ->
+		{C,R} = where(X,Y,Panel),
+		%erlang:display("Mouse left clicked"),
+		case maps:get({C,R}, LayoutPlayer, none) of
+			none ->								% left mouses button clicked on empty place
+				NewLayoutPlayer = maps:put({C,R}, ship, LayoutPlayer),
+				wxPanel:refresh(Panel),
+				case Counter+1 of		% Counter - counter of ships on board
+						5 -> {noreply, State#{layoutPlayer => NewLayoutPlayer, state => battle, counter => 0}};
+						_ -> {noreply, State#{layoutPlayer => NewLayoutPlayer, counter => Counter+1}}
+				end;
+			_ ->									% left mouses button clicked on place with ship
+				NewLayoutPlayer = maps:remove({C,R}, LayoutPlayer),
+				wxPanel:refresh(Panel),
+				{noreply, State#{layoutPlayer => NewLayoutPlayer, counter => Counter-1}}
+		end;
+
+handle_event(#wx{event=#wxMouse{leftDown=true, x=X, y=Y}}, State=					% mouse event - shooting
+						 #{panel := Panel,
+							 layoutPlayer := LayoutPlayer,
+							 layoutComputer := LayoutComputer,
+							 state := battle,
+							 %counter := Counter,
+							 counterComputer := CounterComputer}) ->
+		{C,R} = where(X,Y,Panel),
+		{NewLayoutPlayer, NewLayoutComputer, NewCounterComputer} = playerShoots({C,R}, #{panel => Panel, layoutPlayer => LayoutPlayer,
+																																											layoutComputer => LayoutComputer, counterComputer => CounterComputer}),
+		M = wxMessageDialog:new(wx:null(), "Hello"),
+		wxMessageDialog:showModal(M),
+		{noreply, State#{layoutPlayer => NewLayoutPlayer, layoutComputer => NewLayoutComputer, counterComputer => NewCounterComputer}}.
+
+
 
 handle_sync_event(#wx{event=#wxPaint{}}, _, State) ->
     paint_board(State).
+
+playerShoots({C,R}, #{
+										%panel := Panel,
+							 			layoutPlayer := LayoutPlayer,
+										layoutComputer := LayoutComputer,
+										counterComputer := CounterComputer}) ->
+		case maps:get({C,R}, LayoutPlayer, none) of
+				ship -> NewLayoutPlayer = maps:put({C,R}, sunken, LayoutPlayer),
+								NewCounterComputer = CounterComputer+1;
+				sunken -> NewLayoutPlayer = maps:put({C,R}, sunken, LayoutPlayer),
+								NewCounterComputer = CounterComputer;
+				_ -> NewLayoutPlayer = maps:put({C,R}, missed, LayoutPlayer),
+							NewCounterComputer = CounterComputer
+		end,
+		NewLayoutComputer = LayoutComputer,
+		{NewLayoutPlayer, NewLayoutComputer, NewCounterComputer}.
+		
+		
+
+where(X,Y,Panel) -> 
+		{W,H} = wxPanel:getSize(Panel), 
+		SquareSize = square_size(W,H),
+		{X div SquareSize, Y div SquareSize}.
 
 terminate(_Reason, #{black_brush := BlackBrush,
 		     white_brush := WhiteBrush,
@@ -81,18 +141,11 @@ square_size(W,H) ->
 rectangle(Column,Row,SquareSize) -> 
     {Column * SquareSize, Row * SquareSize, SquareSize, SquareSize}.
 
-init_board() ->
-    Columns = lists:seq(0,7),
-    BlackPieces = [{black,rook}, {black,knight}, {black,bishop}, {black,queen}, 
-		   {black,king}, {black,bishop}, {black,knight}, {black,rook}],
-    WhitePieces = [{white,rook}, {white,knight}, {white,bishop}, {white,queen}, 
-		   {white,king}, {white,bishop}, {white,knight}, {white,rook}],
-    Row6 = [{{C,6}, {white,pawn}} || C <- Columns],	
-    Row1 = [{{C,1}, {black,pawn}} || C <- Columns],	
-    Row7 = [{{C,7}, lists:nth(C+1, WhitePieces)} || C <- Columns],
-    Row0 = [{{C,0}, lists:nth(C+1, BlackPieces)} || C <- Columns],
-
-    maps:from_list(Row0 ++ Row1 ++ Row6 ++ Row7).
+%init_board() ->
+    %Columns = lists:seq(0,7),
+    %Row6 = [{{C,6}, missed} || C <- Columns],	
+    %Row1 = [{{C,1}, ship} || C <- Columns],	
+%    maps:from_list([]).
 
 square_colour(Col, Row) ->
     case ((Col + Row) rem 2) of
@@ -102,25 +155,17 @@ square_colour(Col, Row) ->
 	     
 load_images() ->
     ImageFileNames = #{
-      {black, rook} 	=> "redX.png",
-      {black, knight} 	=> "redX.png",
-      {black, bishop} 	=> "redX.png",
-      {black, queen} 	=> "redX.png",
-      {black, king} 	=> "redX.png",
-      {black, pawn} 	=> "redX.png",
-      {white, rook} 	=> "redX.png",
-      {white, knight}	=> "redX.png",
-      {white, bishop} 	=> "redX.png",
-      {white, queen}	=> "redX.png",
-      {white, king}	=> "redX.png",
-      {white, pawn}	=> "redX.png"},
+      missed => "redX.png",
+			ship => "ship.png",
+			sunken => "sunken.png"},
     maps:map(fun(_K,V) -> wxImage:new(
 			    filename:join("./images", V), 
 			    [{type, ?wxBITMAP_TYPE_PNG}]) end,
 	     ImageFileNames).
 
 paint_board(#{panel := Panel,
-	      layout := Layout,
+	      layoutPlayer := LayoutPlayer,
+				%layoutComputer := LayoutComputer,
 	      image_map := ImageMap,
 	      white_brush := WhiteBrush,
 	      black_brush := BlackBrush}) ->
@@ -133,18 +178,18 @@ paint_board(#{panel := Panel,
 			    black -> BlackBrush;
 			    white -> WhiteBrush
 		end,
-		Rectangle = rectangle(C,R,SquareSize),		
+		Rectangle = rectangle(C,R,SquareSize),
 		wxDC:setBrush(DC,Brush),
 		wxDC:drawRectangle(DC, Rectangle),
-		case maps:get({C,R}, Layout, none) of
+		case maps:get({C,R}, LayoutPlayer, none) of
     		none -> ok;
     		Piece ->
-			{X,Y,SW,SH} = Rectangle,
-			Image = wxImage:scale(maps:get(Piece, ImageMap),SW,SH),
-			PieceBitmap = wxBitmap:new(Image),
-			wxDC:drawBitmap(DC, PieceBitmap, {X,Y}),
-			wxImage:destroy(Image),
-			wxBitmap:destroy(PieceBitmap)
+						{X,Y,SW,SH} = Rectangle,
+						Image = wxImage:scale(maps:get(Piece, ImageMap),SW,SH),
+						PieceBitmap = wxBitmap:new(Image),
+						wxDC:drawBitmap(DC, PieceBitmap, {X,Y}),
+						wxImage:destroy(Image),
+wxBitmap:destroy(PieceBitmap)
 		end	    
 	end,
     
