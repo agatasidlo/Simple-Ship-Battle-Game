@@ -13,9 +13,11 @@ init([]) ->
     wx:new(),
     Frame = wxFrame:new(wx:null(), ?wxID_ANY, "Gra w statki"),
     Sizer = wxBoxSizer:new(?wxVERTICAL),
-		Text = wxStaticText:new(Frame, ?wxID_ANY, "Pick 5 places for your ships"),
+		Text = wxStaticText:new(Frame, ?wxID_ANY, "Pick 5 places for your ships																			Shoot your oponent's ships!"), %tymczasowe rozwiazanie
 		wxSizer:add(Sizer, Text),
-    Panel = wxPanel:new(Frame,[{size, {600,600}},
+		%Text2 = wxStaticText:new(Frame, ?wxID_ANY, "Shoot your oponent's ships!"), %jak zrobić zeby napis był nad druga plansza?
+		%wxSizer:add(Sizer, Text2),
+    Panel = wxPanel:new(Frame,[{size, {1250,600}},
 			       {style, ?wxFULL_REPAINT_ON_RESIZE}]),
     wxSizer:add(Sizer, Panel, [{proportion, 1}, 
 			       {flag, ?wxEXPAND bor ?wxALL}, 
@@ -101,7 +103,7 @@ playerShoots({C,R}, #{
 										layoutComputer := LayoutComputer,
 										counterComputer := CounterComputer}) ->
 		case maps:get({C,R}, LayoutPlayer, none) of
-				ship -> NewLayoutPlayer = maps:put({C,R}, sunken, LayoutPlayer),
+				ship -> NewLayoutPlayer = maps:put({C,R}, sunken, LayoutPlayer), %czemu tutaj sunken?
 								NewCounterComputer = CounterComputer+1;
 				sunken -> NewLayoutPlayer = maps:put({C,R}, sunken, LayoutPlayer),
 								NewCounterComputer = CounterComputer;
@@ -165,7 +167,7 @@ load_images() ->
 
 paint_board(#{panel := Panel,
 	      layoutPlayer := LayoutPlayer,
-				%layoutComputer := LayoutComputer,
+	      layoutComputer := LayoutComputer,
 	      image_map := ImageMap,
 	      white_brush := WhiteBrush,
 	      black_brush := BlackBrush}) ->
@@ -173,15 +175,15 @@ paint_board(#{panel := Panel,
     SquareSize = square_size(W,H),
 
     PaintSquare = 
-	fun(DC,C,R) ->
+	fun(DC,C,R,P) ->
 		Brush = case square_colour(C,R) of
 			    black -> BlackBrush;
 			    white -> WhiteBrush
 		end,
-		Rectangle = rectangle(C,R,SquareSize),
+		Rectangle = rectangle(C+P,R,SquareSize),
 		wxDC:setBrush(DC,Brush),
 		wxDC:drawRectangle(DC, Rectangle),
-		case maps:get({C,R}, LayoutPlayer, none) of
+		case maps:get({C+P,R}, LayoutPlayer, none) of
     		none -> ok;
     		Piece ->
 						{X,Y,SW,SH} = Rectangle,
@@ -196,5 +198,8 @@ wxBitmap:destroy(PieceBitmap)
     DC = wxPaintDC:new(Panel),
     wxDC:setPen(DC, ?wxTRANSPARENT_PEN),
     Seq0to7 = lists:seq(0,7),
-    [PaintSquare(DC,C,R) || R <- Seq0to7, C <- Seq0to7], 
+    PosList=lists:duplicate(8,0),
+    [PaintSquare(DC,C,R,P) || R <- Seq0to7, C <- Seq0to7, P <- PosList], %P - position
+    PosList2=lists:duplicate(8,9),
+    [PaintSquare(DC,C,R,P) || R <- Seq0to7, C <- Seq0to7, P <- PosList2],
 wxPaintDC:destroy(DC).
