@@ -35,10 +35,11 @@ init([]) ->
     wxPanel:connect(Panel, paint, [callback]),
     White = {0,100,200},
     Black = {0,50,200},
+    LayoutWithShips = generatingComputersShips(maps:from_list([])),
     State = #{frame => Frame,
 	      panel => Panel,
-	      layoutPlayer => maps:from_list([]),			% player's board
-				layoutComputer => maps:from_list([]),		% computer's board
+	      layoutPlayer => maps:from_list([]),		% player's board
+				layoutComputer => LayoutWithShips,		% computer's board
 	      image_map => load_images(),
 	      white_brush => wxBrush:new(White),
 	      black_brush => wxBrush:new(Black),
@@ -48,6 +49,7 @@ init([]) ->
 				counterComputer => 0										% counter of sunken computer's ships
 				},
 
+		
     wxFrame:show(Frame),
 		wxPanel:connect(Panel, left_down),
     wxFrame:refresh(Frame),
@@ -127,9 +129,30 @@ playerShoots({C,R}, #{
 		end,
 		{NewLayoutComputer, NewCounterComputer}
 		end.
-		
 
-generatingComputersShips(#{layoutComputer := LayoutComputer}) -> true.
+randomPlaceOnBoard() ->
+		C=rand:uniform(8)-1,
+		R=rand:uniform(8)-1,
+		{C,R}.
+
+generatingComputersShips(LayoutComputer) ->
+		generatingComputersShips(LayoutComputer,5).
+generatingComputersShips(LayoutComputer,ShipsCounter) ->
+		if
+				ShipsCounter<1 ->
+						LayoutComputer;
+				true ->
+						{C,R}=randomPlaceOnBoard(),
+						case maps:get({C,R}, LayoutComputer, none) of
+										ship -> generatingComputersShips(LayoutComputer, ShipsCounter);
+										none -> NewLayoutComputer = maps:put({C,R}, ship, LayoutComputer),
+														erlang:display("column, row:"),
+														erlang:display(C),
+														erlang:display(R),
+														generatingComputersShips(NewLayoutComputer, ShipsCounter-1)
+						end
+		end.
+		
 computerShoots(#{layoutPlayer := LayoutPlayer, counterComputer := CounterComputer}) -> true.
 
 where(X,Y,Panel) -> 
@@ -178,7 +201,7 @@ load_images() ->
 			ship => "ship.png",
 			sunken => "sunken.png"},
     maps:map(fun(_K,V) -> wxImage:new(
-			    filename:join("./images", V), 
+			    filename:join("./images", V),
 			    [{type, ?wxBITMAP_TYPE_PNG}]) end,
 	     ImageFileNames).
 
@@ -192,7 +215,7 @@ paint_board(#{panel := Panel,
     SquareSize = square_size(W,H),
 
     PaintSquare =
-	fun(DC,C,R,P,Layout) ->
+	fun(DC,C,R,P,Layout,W) ->
 		Brush = case square_colour(C,R) of
 			    black -> BlackBrush;
 			    white -> WhiteBrush
@@ -200,23 +223,32 @@ paint_board(#{panel := Panel,
 		Rectangle = rectangle(C+P,R,SquareSize),
 		wxDC:setBrush(DC,Brush),
 		wxDC:drawRectangle(DC, Rectangle),
-		case maps:get({C,R}, Layout, none) of
-    		none -> ok;
-    		Piece ->
-						{X,Y,SW,SH} = Rectangle,
-						Image = wxImage:scale(maps:get(Piece, ImageMap),SW,SH),
-						PieceBitmap = wxBitmap:new(Image),
-						wxDC:drawBitmap(DC, PieceBitmap, {X,Y}),
-						wxImage:destroy(Image),
-wxBitmap:destroy(PieceBitmap)
-		end	    
+				case maps:get({C,R}, Layout, none) of
+						none -> ok;
+						ship ->
+								if W==p ->
+										{X,Y,SW,SH} = Rectangle,
+										Image = wxImage:scale(maps:get(ship, ImageMap),SW,SH),
+										PieceBitmap = wxBitmap:new(Image),
+										wxDC:drawBitmap(DC, PieceBitmap, {X,Y}),
+										wxImage:destroy(Image);
+								true -> ok
+								end;
+						Piece ->
+								{X,Y,SW,SH} = Rectangle,
+								Image = wxImage:scale(maps:get(Piece, ImageMap),SW,SH),
+								PieceBitmap = wxBitmap:new(Image),
+								wxDC:drawBitmap(DC, PieceBitmap, {X,Y}),
+								wxImage:destroy(Image),
+		wxBitmap:destroy(PieceBitmap)
+				end
 	end,
     
     DC = wxPaintDC:new(Panel),
     wxDC:setPen(DC, ?wxTRANSPARENT_PEN),
     Seq0to7 = lists:seq(0,7),
     PosList=lists:duplicate(8,0),
-    [PaintSquare(DC,C,R,P,LayoutPlayer) || R <- Seq0to7, C <- Seq0to7, P <- PosList], %P - position
+    [PaintSquare(DC,C,R,P,LayoutPlayer,p) || R <- Seq0to7, C <- Seq0to7, P <- PosList], %P - position, p - player, c - computer
     PosList2=lists:duplicate(8,9),
-    [PaintSquare(DC,C,R,P,LayoutComputer) || R <- Seq0to7, C <- Seq0to7, P <- PosList2],
+    [PaintSquare(DC,C,R,P,LayoutComputer,c) || R <- Seq0to7, C <- Seq0to7, P <- PosList2],
 wxPaintDC:destroy(DC).
