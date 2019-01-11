@@ -38,7 +38,7 @@ init([]) ->								%init function
 				state => choosingShipsPlaces,						% state = [choosingShipsPlaces | battle | endOfGame]
 				counter => 0,														% counter of sunken player's ships
 				counterComputer => 0,								% counter of sunken computer's ships
-				counterPlayer => 0								% counter of sunken player's ships
+				counterPlayer => 0								% counter of sunken player's ships			
 				},
 
     wxFrame:show(Frame),
@@ -89,12 +89,7 @@ handle_event(#wx{event=#wxMouse{leftDown=true, x=X, y=Y}}, State=				%mouse even
 						NewLayoutPlayer = maps:put({C,R}, ship, LayoutPlayer),
 						wxPanel:refresh(Panel),
 						case Counter+1 of		% Counter - counter of ships on board
-								5 ->
-											M = wxMessageDialog:new(wx:null(), "Shoot your oponent's ships!"),
-											wxMessageDialog:showModal(M),
-											wxMessageDialog:destroy(M),
-											wxPanel:refresh(Panel),
-											{noreply, State#{layoutPlayer => NewLayoutPlayer, state => battle, counter => 0}};
+								5 -> {noreply, State#{layoutPlayer => NewLayoutPlayer, state => battle, counter => 0}};
 								_ -> {noreply, State#{layoutPlayer => NewLayoutPlayer, counter => Counter+1}}
 						end;
 					_ ->									% left mouses button clicked on place with ship
@@ -115,34 +110,31 @@ handle_event(#wx{event=#wxMouse{leftDown=true, x=X, y=Y}}, State=					% mouse ev
 							 counterPlayer := CounterPlayer}) ->
 		{C,R} = where(X,Y,Panel),
 		%erlang:display(Counter),
-		%if Counter == 0 -> % M = wxMessageDialog:new(wx:null(), "Shoot your oponent's ships!"),			%niestety pojawia się dopiero jak klikne, trzeba chyba tym handle_info?
-   		%							 	wxMessageDialog:showModal(M),
-				%							wxMessageDialog:destroy(M),
-			%								{noreply, State#{counter => 1}};
-			%	true ->
+		if Counter == 0 ->  M = wxMessageDialog:new(wx:null(), "Shoot your oponent's ships!"),			%niestety pojawia się dopiero jak klikne, trzeba chyba tym handle_info?
+   									 	wxMessageDialog:showModal(M),
+											wxMessageDialog:destroy(M),
+											{noreply, State#{counter => 1}};
+				true ->																					
 				{NewLayoutComputer, NewCounterComputer} = playerShoots({C-9,R}, #{panel => Panel, layoutPlayer => LayoutPlayer,
 																																												layoutComputer => LayoutComputer, counterComputer => CounterComputer}),
 			if NewCounterComputer == 5 -> 										%player wins
-					M = wxMessageDialog:new(wx:null(), "You won!"),
+					M = wxMessageDialog:new(wx:null(), "You win!"),
 					wxMessageDialog:showModal(M),
-					wxPanel:refresh(Panel),
-					{noreply, State#{layoutComputer => NewLayoutComputer, counterComputer => NewCounterComputer, state => endOfGame}};
+					{noreply, State#{layoutComputer => NewLayoutComputer, counterComputer => NewCounterComputer}};
 					true ->
 					{NewLayoutPlayer, NewCounterPlayer} = computerShoots(#{panel => Panel, layoutPlayer => LayoutPlayer,
 																																													layoutComputer => LayoutComputer, counterPlayer => CounterPlayer}),
-					if NewCounterPlayer == 5 ->										%computer wins
-							M = wxMessageDialog:new(wx:null(), "You lost!"),
+					if NewCounterPlayer ==5 ->										%computer wins
+							M = wxMessageDialog:new(wx:null(), "You lose!"),
 							wxMessageDialog:showModal(M),
-							wxPanel:refresh(Panel),
-							{noreply, State#{layoutPlayer => NewLayoutPlayer, counterPlayer => NewCounterPlayer, state => endOfGame}};
+							{noreply, State#{layoutPlayer => NewLayoutPlayer, counterPlayer => NewCounterPlayer}};
 						true ->																			%nobody wins
 						{noreply, State#{layoutPlayer => NewLayoutPlayer, layoutComputer => NewLayoutComputer, counterComputer => NewCounterComputer, counterPlayer => NewCounterPlayer}}
 					end
-			%end
-		end;
+			end
+		end.
 
-handle_event(#wx{event=#wxMouse{leftDown=true}}, State=					% end of game - nothing is happening
-						 #{state := endOfGame}) -> {noreply, State#{}}.
+
 
 handle_sync_event(#wx{event=#wxPaint{}}, _, State) ->			%painting board event depending on State
     paint_board(State).
@@ -155,7 +147,7 @@ playerShoots({C,R}, #{panel := Panel,															%player shooting
 				M = wxMessageDialog:new(wx:null(), "Don't shoot yourself!!!"),
 				wxMessageDialog:showModal(M),
 				{LayoutComputer, CounterComputer};
-			C==-1 -> {LayoutComputer, CounterComputer};		%player shoots not to board
+			C==-1 -> {LayoutComputer, CounterComputer};		%player shoots not to board	
 			true ->
 		wxPanel:refresh(Panel),
 		case maps:get({C,R}, LayoutComputer, none) of		%player shoots to computer's board
@@ -255,6 +247,12 @@ square_size(W,H) ->		%square size depending on size of Panel
 rectangle(Column,Row,SquareSize) -> 		%position and dimension of square
     {Column * SquareSize, Row * SquareSize, SquareSize, SquareSize}.
 
+%init_board() ->
+    %Columns = lists:seq(0,7),
+    %Row6 = [{{C,6}, missed} || C <- Columns],	
+    %Row1 = [{{C,1}, ship} || C <- Columns],	
+%    maps:from_list([]).
+
 square_colour(Col, Row) ->		%checkered board
     case ((Col + Row) rem 2) of
 	0 -> white;
@@ -292,7 +290,7 @@ paint_board(#{panel := Panel,							%paint board with appropriate parameters
 				case maps:get({C,R}, Layout, none) of
 						none -> ok;
 						ship ->
-								if W==p ->						%drawing player's ships
+								if W==p ->						%drawing ships
 										{X,Y,SW,SH} = Rectangle,
 										Image = wxImage:scale(maps:get(ship, ImageMap),SW,SH),
 										PieceBitmap = wxBitmap:new(Image),
@@ -300,7 +298,7 @@ paint_board(#{panel := Panel,							%paint board with appropriate parameters
 										wxImage:destroy(Image);
 								true -> ok
 								end;
-						Piece ->									%drawing images: missed, sunken
+						Piece ->									%drawing any image?
 								{X,Y,SW,SH} = Rectangle,
 								Image = wxImage:scale(maps:get(Piece, ImageMap),SW,SH),
 								PieceBitmap = wxBitmap:new(Image),
