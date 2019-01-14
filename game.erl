@@ -142,8 +142,7 @@ computerTurn(#{panel := Panel,	layoutPlayer := LayoutPlayer, counterPlayer := Co
 				MPid = self(),
 				ComPid!{MPid, LayoutPlayer, CounterPlayer},
 				receive 
-					{NewLayoutPlayer, NewCounterPlayer} -> io:fwrite("Got new LayoutPlayer\n")
-				end,
+					{NewLayoutPlayer, NewCounterPlayer} -> io:fwrite("Got new LayoutPlayer\n"),
 							if NewCounterPlayer == 5 ->										%computer wins
 								M = wxMessageDialog:new(wx:null(), "You lost!"),
 								wxMessageDialog:showModal(M),
@@ -151,7 +150,8 @@ computerTurn(#{panel := Panel,	layoutPlayer := LayoutPlayer, counterPlayer := Co
 								%ComPid!{endGame},
 								{NewLayoutPlayer, NewCounterPlayer};
 							true -> wxPanel:refresh(Panel), {NewLayoutPlayer, NewCounterPlayer}
-							end.
+							end
+			end.
 								
 playerShoots({C,R}, #{panel := Panel,															%player shooting
 										layoutComputer := LayoutComputer,
