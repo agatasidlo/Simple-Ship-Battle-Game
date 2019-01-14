@@ -19,17 +19,7 @@ computerTurn() ->
 	{ok} -> io:fwrite("Computer turn\n");
 
 	{MPid, LayoutPlayer, CounterPlayer} -> 
-			{C,R}=pickPlace(),
-			case maps:get({C,R}, LayoutPlayer, none) of
-					ship -> NewLayoutPlayer = maps:put({C,R}, sunken, LayoutPlayer),			%shooting to ship -> sunken
-								NewCounterPlayer = CounterPlayer+1;
-					sunken -> NewLayoutPlayer = maps:put({C,R}, sunken, LayoutPlayer),		%shooting to sunken ship -> no change and pick place again
-								NewCounterPlayer = CounterPlayer;
-					missed -> NewLayoutPlayer = maps:put({C,R}, missed, LayoutPlayer),		%shooting to missed -> no change and pick place again
-								NewCounterPlayer = CounterPlayer;
-					_ -> NewLayoutPlayer = maps:put({C,R}, missed, LayoutPlayer),				%shooting to empty square -> missed sign
-								NewCounterPlayer = CounterPlayer
-			end,
+			{NewLayoutPlayer, NewCounterPlayer}=computerShoots(LayoutPlayer, CounterPlayer),
 			MPid!{NewLayoutPlayer, NewCounterPlayer};
 
 		{endGame} -> io:fwrite("End of game\n"),
@@ -64,7 +54,25 @@ generatingComputersShips(LayoutComputer,ShipsCounter) ->
 						end
 		end.
 
-
+computerShoots(LayoutPlayer, CounterPlayer) ->
+			{C,R}=pickPlace(),
+			case maps:get({C,R}, LayoutPlayer, none) of
+					ship -> NewLayoutPlayer = maps:put({C,R}, sunken, LayoutPlayer),			%shooting to ship -> sunken
+								NewCounterPlayer = CounterPlayer+1;
+					sunken -> NewLayoutPlayer = maps:put({C,R}, sunken, LayoutPlayer),		%shooting to sunken ship -> no change and pick place again
+								NewCounterPlayer = CounterPlayer;
+					missed -> NewLayoutPlayer = maps:put({C,R}, missed, LayoutPlayer),		%shooting to missed -> no change and pick place again
+								NewCounterPlayer = CounterPlayer;
+					_ -> NewLayoutPlayer = maps:put({C,R}, missed, LayoutPlayer),				%shooting to empty square -> missed sign
+								NewCounterPlayer = CounterPlayer
+			end,
+			%check if move is correct
+			if NewLayoutPlayer == LayoutPlayer ->
+					computerShoots(LayoutPlayer, CounterPlayer);
+			true ->
+			{NewLayoutPlayer, NewCounterPlayer}
+			end.
+			
 
 pickPlace() ->		%return square picked by computer
 		C=rand:uniform(8)-1,
