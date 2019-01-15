@@ -1,22 +1,18 @@
 -module(computer).
 -compile(export_all).
 
-start()->
+start_link()->
 	spawn(?MODULE, init, []).
-
-start_link() -> 
-	spawn_link(?MODULE, init, []).
 
 init() -> 
 	computerTurn().
 
 computerTurn() ->
 	receive
+
 	{MPid, pickPlaces, LayoutComputer} ->	
 		LayoutWithShips = generatingComputersShips(LayoutComputer),
 		MPid!LayoutWithShips;
-			
-	{ok} -> io:fwrite("Computer turn\n");
 
 	{MPid, LayoutPlayer, CounterPlayer} -> 
 			{NewLayoutPlayer, NewCounterPlayer}=computerShoots(LayoutPlayer, CounterPlayer),
@@ -24,9 +20,6 @@ computerTurn() ->
 
 		{endGame} -> io:fwrite("End of game\n"),
 							 exit(normal)
-			
-	after 5000 ->
-	io:format("Computer waits for player\n")
 	end,
 computerTurn().
 
@@ -47,14 +40,14 @@ generatingComputersShips(LayoutComputer,ShipsCounter) ->
 						case maps:get({C,R}, LayoutComputer, none) of
 										ship -> generatingComputersShips(LayoutComputer, ShipsCounter);			%square is not empty
 										none -> NewLayoutComputer = maps:put({C,R}, ship, LayoutComputer),	%put ship on empty square
-														erlang:display("column, row:"),
-														erlang:display(C),
-														erlang:display(R),
+														%erlang:display("column, row:"),
+														%erlang:display(C),
+														%erlang:display(R),
 														generatingComputersShips(NewLayoutComputer, ShipsCounter-1)
 						end
 		end.
 
-computerShoots(LayoutPlayer, CounterPlayer) ->
+computerShoots(LayoutPlayer, CounterPlayer) ->																	%computer shoots
 			{C,R}=pickPlace(),
 			case maps:get({C,R}, LayoutPlayer, none) of
 					ship -> NewLayoutPlayer = maps:put({C,R}, sunken, LayoutPlayer),			%shooting to ship -> sunken

@@ -2,12 +2,8 @@
 -behaviour(wx_object).		%module with specifict set of functions
 -include_lib("wx/include/wx.hrl").	%library to use wxErlang
 -export([start_link/0]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
-	 handle_event/2, handle_sync_event/3,
-	 terminate/2, code_change/3]).
+-export([init/1, handle_event/2, handle_sync_event/3, terminate/2]).
 -import(computer, []).
-
-%erlang:display("Message") - wyswietlanie w konsoli - pomocne przy szukaniu bledu
 
 
 start_link() ->						%start game function
@@ -29,10 +25,9 @@ init([]) ->								%init function
     Black = {0,50,200},
 		CPid = createComputer(),
 		MPid = self(),
-		CPid!{MPid, pickPlaces, maps:from_list([])},
-		receive
+		CPid!{MPid, pickPlaces, maps:from_list([])},		%send to computer's thread
+		receive																					%receive from computer's thread
 			LayoutWithShips ->
-				%LayoutWithShips = generatingComputersShips(maps:from_list([])),
 				State = #{frame => Frame,
 					  panel => Panel,
 					  layoutPlayer => maps:from_list([]),		% player's board
@@ -42,7 +37,7 @@ init([]) ->								%init function
 					  black_brush => wxBrush:new(Black),
 						selected_brush => wxBrush:new({238,232,170}),
 						state => choosingShipsPlaces,						% state = [choosingShipsPlaces | battle | endOfGame]
-						counter => 0,														% counter of sunken player's ships
+						counter => 0,														% counter of places choosen by player
 						counterComputer => 0,								% counter of sunken computer's ships
 						counterPlayer => 0,							% counter of sunken player's ships
 						cPid => CPid										%computer's pid	
@@ -58,15 +53,6 @@ init([]) ->								%init function
 		end.
 
 %events
-handle_call(_Request, _From, State) ->
-    {reply, ok, State}.
-
-handle_cast(_Msg, State) ->
-    {noreply, State}.
-
-handle_info(_Info, State) ->
-    {noreply, State}.
-
 
 handle_event(#wx{event=#wxMouse{leftDown=true, x=X, y=Y}}, State=				%mouse event when choosing places for ships
 						 #{panel := Panel,
@@ -117,12 +103,11 @@ handle_event(#wx{event=#wxMouse{leftDown=true, x=X, y=Y}}, State=					% mouse ev
 								M = wxMessageDialog:new(wx:null(), "You won!"),
 								wxMessageDialog:showModal(M),
 								wxPanel:refresh(Panel),
-								%ComPid!{endGame},
 								{noreply, State#{layoutComputer => NewLayoutComputer, counterComputer => NewCounterComputer, state => endOfGame}};
 								true ->
-									{NewLayoutPlayer, NewCounterPlayer} = computerTurn(#{panel => Panel,							
+									{NewLayoutPlayer, NewCounterPlayer, StateOfGame} = computerTurn(#{panel => Panel,							
 																	layoutPlayer => LayoutPlayer, counterPlayer => CounterPlayer, cPid => ComPid}),
-									{noreply, State#{layoutComputer => NewLayoutComputer, counterComputer => NewCounterComputer, layoutPlayer => NewLayoutPlayer, counterPlayer => NewCounterPlayer}}
+									{noreply, State#{layoutComputer => NewLayoutComputer, counterComputer => NewCounterComputer, layoutPlayer => NewLayoutPlayer, counterPlayer => NewCounterPlayer,state => StateOfGame}}
 					end
 			end;
 
@@ -132,24 +117,22 @@ handle_event(#wx{event=#wxMouse{leftDown=true}}, State=					% end of game - noth
 handle_sync_event(#wx{event=#wxPaint{}}, _, State) ->			%painting board event depending on State
     paint_board(State).
 
-createComputer()->
+createComputer()->							%creates computer's thread and returns computer's pid
 	CPid = computer:start_link(),
 	CPid.
 
-computerTurn(#{panel := Panel,	layoutPlayer := LayoutPlayer, counterPlayer := CounterPlayer, cPid := ComPid}) ->
-				ComPid!{ok},
+computerTurn(#{panel := Panel,	layoutPlayer := LayoutPlayer, counterPlayer := CounterPlayer, cPid := ComPid}) ->  	%sends/receives information to/from computer's thread
 				wxPanel:refresh(Panel),
 				MPid = self(),
 				ComPid!{MPid, LayoutPlayer, CounterPlayer},
 				receive 
-					{NewLayoutPlayer, NewCounterPlayer} -> io:fwrite("Got new LayoutPlayer\n"),
+					{NewLayoutPlayer, NewCounterPlayer} ->
 							if NewCounterPlayer == 5 ->										%computer wins
 								M = wxMessageDialog:new(wx:null(), "You lost!"),
 								wxMessageDialog:showModal(M),
 								wxPanel:refresh(Panel),
-								%ComPid!{endGame},
-								{NewLayoutPlayer, NewCounterPlayer};
-							true -> wxPanel:refresh(Panel), {NewLayoutPlayer, NewCounterPlayer}
+								{NewLayoutPlayer, NewCounterPlayer, endOfGame};
+							true -> wxPanel:refresh(Panel), {NewLayoutPlayer, NewCounterPlayer, battle}
 							end
 			end.
 								
@@ -185,16 +168,13 @@ where(X,Y,Panel) -> 								%return position of square
 
 terminate(_Reason, #{black_brush := BlackBrush,				%destroy functions while terminating program
 		     white_brush := WhiteBrush,
-		     image_map := ImageMap, cPid := ComPid}) ->
+				 image_map := ImageMap, cPid := ComPid}) ->
     wxBrush:destroy(BlackBrush),
     wxBrush:destroy(WhiteBrush),
     [wxImage:destroy(I) || I <- maps:values(ImageMap)],
 		erlang:display(ComPid),
 		ComPid!{endGame},
     wx:destroy().
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
 
 square_size(W,H) ->		%square size depending on size of Panel
     ((min(W,H) div 8) div 2) * 2.
