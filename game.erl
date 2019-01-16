@@ -3,8 +3,6 @@
 -include_lib("wx/include/wx.hrl").	%library to use wxErlang
 -export([start_link/0]).
 -export([init/1, handle_event/2, handle_sync_event/3, terminate/2]).
--import(computer, []).
-
 
 start_link() ->						%start game function
     wx_object:start_link(?MODULE, [], []).

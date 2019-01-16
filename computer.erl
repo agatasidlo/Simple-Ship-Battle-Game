@@ -40,9 +40,9 @@ generatingComputersShips(LayoutComputer,ShipsCounter) ->
 						case maps:get({C,R}, LayoutComputer, none) of
 										ship -> generatingComputersShips(LayoutComputer, ShipsCounter);			%square is not empty
 										none -> NewLayoutComputer = maps:put({C,R}, ship, LayoutComputer),	%put ship on empty square
-														%erlang:display("column, row:"),
-														%erlang:display(C),
-														%erlang:display(R),
+														erlang:display("column, row:"),
+														erlang:display(C),
+														erlang:display(R),
 														generatingComputersShips(NewLayoutComputer, ShipsCounter-1)
 						end
 		end.
